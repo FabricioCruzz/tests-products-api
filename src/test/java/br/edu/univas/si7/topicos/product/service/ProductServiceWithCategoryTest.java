@@ -1,9 +1,11 @@
 package br.edu.univas.si7.topicos.product.service;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,16 +75,23 @@ public class ProductServiceWithCategoryTest {
 	}
 	
 	@Test
-	void testGetProductById_Success() {
+	void testGetProductById_ExistingProduct() {
 		ProductEntity product = service.findById(1);
 		assertNotNull(product);
 		assertEquals(1, product.getCode());
 	}
 	
-	
 	@Test
-	void testGetProductById_CodeNotMatches() {
-		assertThrows(ObjectNotFoundException.class, () -> service.findById(100));
+	public void testFindById_NonExistingProduct() {
+		Mockito.when(repo.findById(2)).thenReturn(Optional.empty());
+		
+		try {
+			service.findById(2);
+		} catch(ObjectNotFoundException e) {
+			assertEquals("Product 2 not found", e.getMessage());
+		}
+		
+		Mockito.verify(repo,Mockito.times(1)).findById(2);
 	}
 	
 	@Test
@@ -143,41 +152,75 @@ public class ProductServiceWithCategoryTest {
 	void testUpdateProduct_CodeIsNull() {
 		CategoryEntity cat01 = new CategoryEntity("name01", "family01", "group01");
 		ProductEntity prod01 = new ProductEntity(1, "test", 0f, false, cat01);
-		assertThrows(ProductException.class, () -> service.updateProduct(prod01, null));
+		
+		try {
+			service.updateProduct(prod01, null);
+		} catch(ProductException e) {
+			assertEquals("Invalid product code.", e.getMessage());
+		}
 	}
 	
 	@Test
 	void testUpdateProduct_ProductIsNull() {
-		assertThrows(ProductException.class, () -> service.updateProduct(null, 1));
+		try {
+			service.updateProduct(null, 1);
+		} catch(ProductException e) {
+			assertEquals("Invalid product code.", e.getMessage());
+		}
 	}
 	
 	@Test
 	void testUpdateProduct_CodeNotMatch() {
 		CategoryEntity cat01 = new CategoryEntity("name01", "family01", "group01");
 		ProductEntity prod01 = new ProductEntity(1, "test", 0f, false, cat01);
-		assertThrows(ProductException.class, () -> service.updateProduct(prod01, 2));
+		
+		try {
+			service.updateProduct(prod01, 2);
+		} catch (ProductException e) {
+			assertEquals("Invalid product code.", e.getMessage());			
+		}
 	}
 	
 	@Test
 	void testDelete_Success() {
 		Mockito.doNothing().when(repo).delete(Mockito.any());
 		service.deleteProduct(1);
+		ProductEntity obj = service.findById(1);
+		Mockito.verify(repo, Mockito.times(1)).delete(obj);
 	}
 	
 	@Test
 	void testDelete_CodeIsNull() {
-		assertThrows(ProductException.class, () -> service.deleteProduct(null));
+		try {
+			service.deleteProduct(null);
+		} catch (ProductException e) {
+			assertEquals("Product code can not be null.", e.getMessage());
+		}
 	}
 	
 	@Test
 	void testDelete_Exception() {
+		ProductEntity prod = new ProductEntity();
+		prod.setCode(1);
+		Mockito.when(repo.findById(1)).thenReturn(Optional.of(prod));
+		
 		Mockito.doThrow(DataIntegrityViolationException.class)
-			.when(repo).delete(Mockito.any());
-		assertThrows(ProductException.class, () -> service.deleteProduct(1));
+			.when(repo).delete(prod);
+		
+		try {
+			service.deleteProduct(1);
+			fail("Expected ProductException to be thrown");
+		} catch (ProductException e) {
+			assertEquals("Can not delete a Product with dependencies constraints.", e.getMessage());			
+		}
 	}
 	
 	@Test
 	void testDelete_NonExistingProduct() {
-		assertThrows(ObjectNotFoundException.class, () -> service.deleteProduct(2));
+		try {
+			service.deleteProduct(4);
+		} catch (ObjectNotFoundException e) {
+			assertEquals("Product 4 not found", e.getMessage());
+		}
 	}
 }
